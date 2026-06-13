@@ -17,13 +17,14 @@ fails, where does the failure come from, and can stochastic sampling recover it?
 | Compilation Rate | 100 / 100 |
 | Improved Prompt | 61 / 100 (+1) |
 | Recovery@10 on failed tasks | 25 / 40 (62.5%) |
-| Solvable under a greedy-then-10-sample budget | ~85 / 100 |
+| Greedy Passes + Recovered Failures | ~85 / 100* |
+
+*Not equivalent to Pass@10 on the full benchmark.
 
 **Key finding.** Engineering the prompt moved Pass@1 by a single problem (60 → 61).
 Re-decoding the *same* baseline prompt stochastically (T = 0.8, 10 samples) recovered
-**25 of the 40** greedy failures. For this model on this slice, **decoding strategy
-dominates prompt phrasing** — the correct programs were largely already in the model's
-distribution; greedy decoding simply was not reaching them.
+**25 of the 40** greedy failures. On this evaluation slice, decoding strategy produced
+substantially larger gains than prompt engineering.
 
 ## Setup
 
@@ -63,7 +64,7 @@ Approximate runtimes:
 | Baseline + Improved Prompt (Sections 1–2) | ~16 min |
 | Recovery Analysis, 400 generations (Section 3) | ~30–40 min |
 
-The Recovery run is checkpointed and resumable: re-running the generation cell skips any
+The Recovery run is checkpointed to Google Drive and fully resumable: re-running the generation cell skips any
 problem that already has 10 samples, so a disconnect costs at most 10 generations.
 
 ---
@@ -95,10 +96,9 @@ process-isolated harness in Section 4 is unnecessary here.)
 
 Two observations:
 
-- **Zero SyntaxErrors**, consistent with the 100% compilation rate — the code always
-  runs; it just computes the wrong answer.
-- Failures are overwhelmingly **AssertionError (35/40)**: the function returns a value,
-  but the wrong one.
+**Two observations:**
+* **Zero SyntaxErrors**, consistent with the 100% compilation rate — the code always runs; it just computes the wrong answer.
+* **Failures are overwhelmingly AssertionError (35/40):** the function returns a value, but the wrong one. The model almost never produces invalid Python. Its failures are overwhelmingly **semantic rather than syntactic**.
 
 Because a bare `assert a == b` raises an empty message, the AssertionError cases were
 enriched with the actual vs. expected values (recomputed from the test via AST parsing).
@@ -133,12 +133,16 @@ From the same 400 generations, the unbiased estimator
 `Recovery@k = 1 − C(n−c, k) / C(n, k)` (averaged over the 40 tasks) traces recovery
 against sampling budget:
 
+Recovery@10 is measured directly; Recovery@1, 3, and 5 are estimated from the same 10 samples using the unbiased pass@k estimator.
+
 | k | Recovery@k |
 |---|---|
 | 1 | 23.2% |
 | 3 | 44.3% |
 | 5 | 53.1% |
 | 10 | 62.5% |
+
+![Recovery Analysis: Recovery@k vs Sampling Budget](recovery_curve.png)
 
 A single stochastic sample — the same compute cost as greedy — already recovers ~23%,
 with clear diminishing returns past k = 5.
